@@ -1,0 +1,326 @@
+Разные IP
+
+https://www.reg.ru/web-tools/myip
+https://2ip.ru/
+
+
+
+
+
+
+
+
+
+
+1)Регистрируем два сервера: один внутри страны, второй за границей. Далее я их буду называть local и external
+У меня local — это виртуалка в домашней сети, но если у вас нет своего сервера, то можно взять виртуалку у ruvds. Можно использовать, наверное, даже малину, стоящую дома, лишь бы был белый IP и роутер, на котором можно пробросить порты. Насчет малины, я, правда, не уверен: ей придется маршрутизировать весь трафик с устройств и держать в памяти ~11к маршрутов.
+Считаем, что и там, и там Debian 11.
+
+2)На обоих делаем
+apt update && apt install wireguard iptables ipcalc qrencode curl jq -y
+echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+echo "net.ipv4.conf.all.forwarding=1" >> /etc/sysctl.conf
+sysctl -p /etc/sysctl.conf
+
+Смотрим имя сетевого интерфейса (ip a). У меня на internal это ens3, на external ens2
+
+3) Генерируем ключи. Запускаем два раза wg genkey и получаем два приватных ключа:
+root@trikster-internal:~# wg genkey
+kOd3FVBggwpjD3AlZKXUxNTzJT0+f3MJdUdR8n6ZBn8=
+root@trikster-internal:~# wg genkey
+6CCRP42JiTObyf64Vo0BcqsX6vptsqOU+MKUslUun28=
+
+Создаем два конфига:
+На internal: /etc/wireguard/wg-internal.conf
+[Interface]
+Address = 10.20.30.1/32
+ListenPort = 17968
+PrivateKey = kOd3FVBggwpjD3AlZKXUxNTzJT0+f3MJdUdR8n6ZBn8=
+PostUp = iptables -t nat -A POSTROUTING -o `ip link show | awk -F ': ' '/state UP/ {print $2}'` -j MASQUERADE
+PostUp = ip rule add from `ip route | awk '/default/ {print $3; exit}'` table main
+PostDown = iptables -t nat -D POSTROUTING -o `ip link show | awk -F ': ' '/state UP/ {print $2}'` -j MASQUERADE
+PostDown = ip rule del from `ip route | awk '/default/ {print $3; exit}'` table main
+
+
+На external: /etc/wireguard/wg-external.conf
+[Interface]
+Address=10.20.30.2/32
+PrivateKey=6CCRP42JiTObyf64Vo0BcqsX6vptsqOU+MKUslUun28=
+PostUp = iptables -t nat -A POSTROUTING -o `ip link show | awk -F ': ' '/state UP/ {print $2}'` -j MASQUERADE
+PostDown = iptables -t nat -D POSTROUTING -o `ip link show | awk -F ': ' '/state UP/ {print $2}'` -j MASQUERADE
+
+
+Теперь связываем их, добавляя в каждый по секции Peer, для чего генерируем из приватного ключа публичный:
+root@trikster-internal:~#  echo "kOd3FVBggwpjD3AlZKXUxNTzJT0+f3MJdUdR8n6ZBn8=" | wg pubkey
+MxnOnIlKfSyZyRutnYyoWHb3Izjalgf1t8F1oPJiyyw=
+
+Это публичный ключ сервера internal, его мы помещаем в секцию peer на external:
+/etc/wireguard/wg-external.conf
+[Peer]
+PublicKey=MxnOnIlKfSyZyRutnYyoWHb3Izjalgf1t8F1oPJiyyw=
+AllowedIPs=10.20.30.0/24
+Endpoint=195.2.79.13:17968
+PersistentKeepalive=25
+
+Там же, в Endpoint указываем адрес сервера internal и порт, который мы задали в ListenPort.
+С AllowedIPs при использовании wg-quick возникает небольшая путаница: это изначально именно, то как оно называется — список разрешенных IP-адресов к приему из туннеля: если что-то прилетает с другим src, оно будет отброшено. Но при использовании wg-quick она разумно считает, что если там есть какие-то устройства, которые могут послать пакет, то значит пакеты к этим устройствам надо маршрутизировать туда же, и создает маршруты на эти адреса, указывающие на туннель пира. В данных примерах AllowedIPs можно читать как "адреса, трафик на которые будут маршрутизироваться в туннель этого пира и с которых пир сможет отправить что-то в туннель".
+
+Т.е. пункт AllowedIPs = 10.20.30.3/32 означает, буквально, "только запросы на 10.20.30.3 (адрес пира WG) отправлять в туннель", т.е. дать доступ только до машины этого клиента.
+Пункт AllowedIPs = 192.168.88.0/24 означает, что при запросе адреса из этой подсети, этот запрос уйдет в туннель клиента, и если у него включен форвардинг и ему доступна эта подсеть, то к ней можно будет получить доступ.
+А "AllowedIPs = 0.0.0.0/0" означает, что в туннель надо маршрутизировать весь трафик вообще. Правда, это не относится к трафику, например, локальной сети: приоритет у маршрута, который создастся из маски подсети и адреса шлюза, выше чем у 0.0.0.0/0. Также, маршрут 0.0.0.0/0 перебьют маршруты других пиров, если они будут в конфиге.
+В данном случае "AllowedIPs=10.20.30.0/24" — означает что трафик с external в подсеть 10.20.30.0-10.20.30.255 будет уходить в туннель к internal. В принципе, нужды в этом особо нет, external у нас исключительно выходная нода. Но вдруг мы как-нибудь захотим зайти оттуда по ssh на какую-нибудь другую машину.
+
+Теперь проделываем тоже самое с приватным ключом external:
+root@trikster-internal:~#  echo "6CCRP42JiTObyf64Vo0BcqsX6vptsqOU+MKUslUun28=" | wg pubkey
+FulnUTovyyfgn5kmgPkcj2OjKRFGeLkaTsHtAOy6HW8=
+Имя сервера в команда выше, конечно же, значения не имеет, генерировать ключи можно хоть на локальной машине. Мы получаем публичный ключ сервера external и помещаем его в секцию peer сервера internal:
+
+/etc/wireguard/wg-internal.conf
+[Peer] #external node
+PublicKey = FulnUTovyyfgn5kmgPkcj2OjKRFGeLkaTsHtAOy6HW8=
+AllowedIPs = 10.20.30.2/32, 0.0.0.0/0
+
+Я намеренно не привожу сразу готовые конфиги, потому что хочу показать механизм создания конфигов в ручном режиме — в свое время у меня были проблемы с тем, что я генерировал конфиги утилитами типа easy-wg-quick, которые спрашивают тебя о названии клиента и красиво показывают QR-код прям в консоли, но отнюдь не способствуют пониманию.
+AllowedIPs тут "10.20.30.2/32, 0.0.0.0/0" — указываем, что за туннелем находится конкретный IP 10.20.30.2 и помимо этого, пробрасываем весь трафик, не связанный другими маршрутами, в этот туннель: external у нас это основная выходная нода нашего VPN, так что по умолчанию весь трафик будет направляться через нее, т.к. зарубежных маршрутов больше, чем российских, логичнее фильтровать именно российские, а зарубежный трафик пустить по умолчанию через ноду в другой стране.
+
+Итак, два конфига:
+/etc/wireguard/wg-internal.conf
+[Interface]
+Address = 10.20.30.1/32
+ListenPort = 17968
+PrivateKey = kOd3FVBggwpjD3AlZKXUxNTzJT0+f3MJdUdR8n6ZBn8=
+PostUp = iptables -t nat -A POSTROUTING -o ens3 -j MASQUERADE
+PostUp = ip rule add from 195.2.79.13 table main
+PostDown = iptables -t nat -D POSTROUTING -o ens3 -j MASQUERADE
+PostDown = ip rule del from 195.2.79.13 table main
+
+#external node
+[Peer]
+PublicKey = FulnUTovyyfgn5kmgPkcj2OjKRFGeLkaTsHtAOy6HW8=
+AllowedIPs = 10.20.30.2/32, 0.0.0.0/0
+
+
+
+/etc/wireguard/wg-external.conf
+[Interface]
+Address=10.20.30.2/32
+PrivateKey=6CCRP42JiTObyf64Vo0BcqsX6vptsqOU+MKUslUun28=
+PostUp = iptables -t nat -A POSTROUTING -o ens2 -j MASQUERADE
+PostDown = iptables -t nat -D POSTROUTING -o ens2 -j MASQUERADE
+
+#internal node
+[Peer]
+PublicKey=MxnOnIlKfSyZyRutnYyoWHb3Izjalgf1t8F1oPJiyyw=
+AllowedIPs=10.20.30.0/24
+Endpoint=195.2.79.13:17968
+PersistentKeepalive=25
+
+
+
+4)Поднимаем туннели:
+wg-quick down wg-external ; wg-quick up wg-external
+wg-quick down wg-internal ; wg-quick up wg-internal
+
+
+
+
+Проверяем, что туннели подняты командой wg:
+root@trikster-internal:~# wg
+...
+peer: FulnUTovyyfgn5kmgPkcj2OjKRFGeLkaTsHtAOy6HW8=
+  endpoint: 51.159.187.77:36276
+  allowed ips: 10.20.30.2/32, 0.0.0.0/0
+  latest handshake: 13 seconds ago
+  transfer: 180 B received, 92 B sent
+
+
+
+root@trikster-external:~# wg
+...
+peer: MxnOnIlKfSyZyRutnYyoWHb3Izjalgf1t8F1oPJiyyw=
+  endpoint: 195.2.79.13:17968
+  allowed ips: 10.20.30.0/24
+  latest handshake: 10 seconds ago
+  transfer: 92 B received, 180 B sent
+  persistent keepalive: every 25 seconds
+
+
+Если видим "latest handshake" и байты и в received и в sent, значит, все ок. Если только "send", без хендшейка и полученных данных, где-то в ошибка в конфиге или сервера недоступны друг для друга.
+
+Если что-то пошло не так, и отвалился ssh, то достаточно перезагрузить сервер. Если все хорошо, и доступ к серверам сохранился, ставим туннели в автозапуск:
+systemctl enable wg-quick@wg-external.service && systemctl daemon-reload
+systemctl enable wg-quick@wg-internal.service && systemctl daemon-reload
+
+
+Попробуем посмотреть маршрут (рекомендую замечательную утилиту mytraceroute, mtr) без туннеля:
+root@trikster-internal:~# wg-quick down wg-internal && mtr -r google.com
+HOST: trikster-internal.local     Loss%   Snt   Last   Avg  Best  Wrst StDev
+  1.|-- host-89-22-232-243.hosted  0.0%    10    0.3   5.4   0.3  49.8  15.6
+  2.|-- 172.31.0.1                 0.0%    10    0.3  19.8   0.3 122.2  42.6
+  3.|-- 109.239.138.90             0.0%    10    1.5   1.9   1.4   3.0   0.6
+  4.|-- 91.108.51.4                0.0%    10   11.4  11.4  11.3  11.7   0.1
+  5.|-- 178.18.227.12.ix.dataix.e  0.0%    10   11.0  17.9  11.0  77.0  20.8
+
+И с туннелем:
+root@trikster-internal:~# wg-quick up wg-internal && sleep 10 &&  mtr -r google.com
+HOST: trikster-internal.local     Loss%   Snt   Last   Avg  Best  Wrst StDev
+  1.|-- 10.20.30.2                 0.0%    10   51.3  51.3  51.2  51.4   0.1
+  2.|-- 10.200.100.0               0.0%    10   51.4  51.4  51.2  51.6   0.1
+  3.|-- 10.197.37.65               0.0%    10   52.5  52.2  52.0  52.5   0.2
+  4.|-- 10.197.0.41                0.0%    10   52.2  52.2  52.1  52.5   0.1
+  5.|-- 10.197.0.44                0.0%    10   52.0  52.2  51.9  52.4   0.1
+
+Все хорошо, трафик идет через внешний сервер — сначала на 10.20.30.2, который выходная нода, а потом через его маршрутизаторы.
+
+Создаем конфиг клиента, конечного устройства-пользователя VPN. За основу берем wg-external.conf, потому что он такой же точно клиент, который подключается к internal, разница только в том, что external получает пакеты, а наш клиент будет отправлять.
+
+Генерируем ему сразу пару публичный-приватный ключ:
+wg genkey > privatekey && wg pubkey < privatekey > publickey && echo && echo && echo -n "Private: " && cat privatekey &&  echo -n "Public: " && cat publickey && rm privatekey publickey
+Private: iPK7hYSU8TLVRD+w13nd3aGSYNLfnTx6zwdRzKcGb1o=
+Public: 26Vhud00ag/bdB9molvSxfBzZTlzdO+aZgrX3ZDncSg=
+
+
+
+/etc/wireguard/wg-notebook-client.conf
+[Interface]
+Address=10.20.30.3/32
+PrivateKey=iPK7hYSU8TLVRD+w13nd3aGSYNLfnTx6zwdRzKcGb1o=
+DNS = 1.1.1.1, 8.8.8.8
+
+#internal node
+[Peer]
+PublicKey=MxnOnIlKfSyZyRutnYyoWHb3Izjalgf1t8F1oPJiyyw=
+AllowedIPs = 0.0.0.0/0
+Endpoint=195.2.79.13:17968
+PersistentKeepalive=25
+
+И добавляем еще одну секцию peer в конфиг на internal
+
+#notebook-client node
+[Peer]
+PublicKey = 26Vhud00ag/bdB9molvSxfBzZTlzdO+aZgrX3ZDncSg=
+AllowedIPs = 10.20.30.3/32
+
+Перезапускаем туннель на internal (wg-quick down/up), подключаемся.. Оп, хендшейк есть, данные пошли.
+Открываем какой-нибудь https://www.reg.ru/web-tools/myip, видим IP external ноды, и другую страну.
+
+Таким же образом создаем конфиги для других клиентов. Если это мобильные устройства, то удобнее показать им QR. Он делается следующим образом: создаем в текущей папке конфиг как обычно, конечно, с новыми ключами и другим IP, какой-нибудь wg-moblie-client.conf и дальше командой qrencode -t ansiutf8 < wg-moblie-client.conf показываем прям в консоли QR, который сканируем с телефона. Это удобнее копирования файлов, но вам так же никто не мешает скинуть wg-moblie-client.conf на телефон или вообще ввести значения 7 полей вручную.
+
+
+Готово, мы только что сделали очень странный двуххоповый VPN. Желаем это отметить и заказать себе пива, открываем сбермаркет.. "СберМаркет не открывается. Если у вас работает VPN, отключите его". Ах да, мы же с этой проблемой и собирались бороться... Неловко.
+Давайте доделаем.
+Как мы помним, мы отправляем все данные с клиента на internal, а тот все данные отправляет на external, а тот уже своему провайдеру. Так же, мы помним, что у нас на internal "слабый" маршрут 0.0.0.0/0, который перебивается любыми другими маршрутами, а сам internal находится в российском сегменте. Значит, все, что нам надо — это как-то перехватить запросы на российские IP на уровне internal и перенаправить их не в туннель WG до external, а напрямую в сетевой порт самого сервера, в тот, через который он получает доступ в православный, российский интернет со скрепами и девицами в кокошниках.
+
+Давайте проверим предположение. На клиенте получим IP того же сбермаркета (nslookup sbermarket.ru), и посмотрим, как туда идет трафик(traceroute -r 212.193.158.175):
+HOST: vvzvladMBP14.local          Loss%   Snt   Last   Avg  Best  Wrst StDev
+  1.|-- 10.20.30.1                 0.0%    10    3.9   4.3   3.2   6.5   1.1
+  2.|-- 10.20.30.2                 0.0%    10   55.7  56.0  54.6  59.2   1.2
+  3.|-- 10.200.100.0               0.0%    10   55.5  56.1  54.9  58.6   1.1
+  4.|-- 10.197.37.65               0.0%    10   56.0  56.9  55.4  60.1   1.7
+  5.|-- 10.197.0.41                0.0%    10   56.1  57.0  55.7  60.9   1.6
+
+Ага, как и ожидалось, через external.
+Теперь создадим маршрут до этого адреса через дефолтный шлюз и устройство. Их можно узнать в ip r:
+root@trikster-internal:~# ip r
+default via 195.2.79.1 dev ens3 onlink
+10.20.30.2 dev wg-internal scope link
+...
+
+Вот 195.2.79.1 и ens3 и есть нужные нам данные. Создаем маршрут такой командой:
+gateway=`ip route | awk '/default/ {print $3; exit}'`
+gateway_device=`ip route | awk '/default/ {print $5; exit}'`
+ip route add 212.193.158.175/32 via $gateway dev $gateway_device
+
+
+Проверяем:
+root@trikster-internal:~# ip r
+default via 195.2.79.1 dev ens3 onlink
+10.20.30.2 dev wg-internal scope link
+10.20.30.3 dev wg-internal scope link
+195.2.79.0/24 dev ens3 proto kernel scope link src 195.2.79.13
+212.193.158.175 via 195.2.79.1 dev ens3
+
+Да, на последнем месте у нас нужный маршрут.
+
+Теперь повторяем команду traceroute -r 212.193.158.175 на клиенте, и видим, что трейс другой:
+HOST: vvzvladMBP14.local          Loss%   Snt   Last   Avg  Best  Wrst StDev
+  1.|-- 10.20.30.1                 0.0%    10    4.3   7.9   3.7  29.1   7.9
+  2.|-- host-89-22-232-243.hosted  0.0%    10    4.6   4.9   3.8   9.2   1.6
+  3.|-- 172.31.0.1                 0.0%    10   25.9   8.4   3.3  25.9   6.9
+  4.|-- sw1-m9p2-msk.ip.ngenix.ne  0.0%    10    6.2   5.7   4.0   7.3   1.0
+  5.|-- cdn.ngenix.net             0.0%    10    3.8   5.0   3.8   8.4   1.3
+
+Сбермаркет, правда, все еще не открываемся: видимо, проверяет на наличие VPN какой-то другой сервер, а не тот, в адрес которого ресолвится имя домена. Можно сходить на https://asnlookup.com/, вбить туда адрес, и получить принадлежность адреса к AS и заодно список подсетей этой AS (AS34879, OOO Sovremennye setevye tekhnologii). С большой вероятностью для более-менее крупных компаний это и будет их сетевая инфраструктура (ну или по крайней мере, инфраструктура, относящаяся к конкретному сайту), прописав для которой маршруты, вы обеспечите доступ на нужный вам сайт/сервис. Для мелких сайтов вы скорее всего получите AS хостера или дата-центра, но, во-первых, это тоже сработает, а во-вторых, мелкие сайты обычно и не закрывают иностранные диапазоны, потому что не испытывают проблем с DDOSом из-за границы.
+
+Но можно сделать проще: засунуть в маршруты все адреса российского сегмента (спасибо статье на хабре:https://habr.com/en/post/659655/) и не париться о ручном добавлении.
+RIPE отдает их все в виде JSON вот по этому адресу: https://stat.ripe.net/data/country-resource-list/data.json?resource=ru
+Утилита jq преобразует из json в список подсетей: curl https://stat.ripe.net/data/country-resource-list/data.json?resource=ru | jq -r ".data.resources.ipv4[]"
+Правда, почему-то некоторые адреса там в формате "195.85.234.0-195.85.236.255", а не подсети, поэтому для них нам необходима еще утилита ipcalc:
+root@trikster-internal:~# ipcalc 195.85.234.0-195.85.236.255 |grep -v "deaggregate"
+195.85.234.0/23
+195.85.236.0/24
+
+Выделить эти адреса из базового списка можно банально через "grep '-' " или "grep -v '/' ". Но их там немного, и на них, в принципе, можно забить.
+
+Скрипт выглядит как-то так (я не удержался и добавил туда еще и прогрессбар):
+
+#!/bin/bash
+
+function ProgressBar {
+  let _progress=(${1}*100/${2}*100)/100
+  let _done=(${_progress}*4)/10
+  let _left=40-$_done
+  _fill=$(printf "%${_done}s")
+  _empty=$(printf "%${_left}s")
+  printf "\rAddind routes : [${_fill// /#}${_empty// /-}] ${_progress}%%"
+}
+
+#Variables
+file_raw="russian_subnets_list_raw.txt"
+file_user="subnets_user_list.txt"
+file_for_calc="russian_subnets_list_raw_for_calc.txt"
+file_processed="russian_subnets_list_processed.txt"
+gateway_for_internal_ip=`ip route | awk '/default/ {print $3; exit}'`
+interface=`ip link show | awk -F ': ' '/state UP/ {print $2}'`
+
+#Get addresses RU segment
+echo "Download RU subnets..."
+curl --progress-bar "https://stat.ripe.net/data/country-resource-list/data.json?resource=ru" | jq -r ".data.resources.ipv4[]" > $file_raw
+
+echo "Deaggregate subnets..."
+cat $file_raw |grep "-" > $file_for_calc
+cat $file_raw |grep -v "-" > $file_processed
+for line in $(cat $file_for_calc); do ipcalc $line |grep -v "deaggregate" >> $file_processed; done
+
+if [ -e $file_user  ]; then echo "Add user subnets..."; cat $file_user >> $file_processed; fi
+
+#Flush route table
+echo "Flush route table (down and up interface)..."
+ifdown $interface && ifup $interface
+
+#Add route
+routes_count_in_file=`wc -l $file_processed`
+routes_count_current=0
+for line in $(cat $file_processed); do ip route add $line via $gateway_for_internal_ip dev $interface; let "routes_count_current+=1" ; ProgressBar ${routes_count_current} ${routes_count_in_file}; done
+echo ""
+
+echo "Remove temp files..."
+rm $file_raw $file_processed $file_json $file_for_calc
+
+routes_count=`ip r | wc -l`
+echo "Routes in routing table: $routes_count"
+
+
+
+Добавим строчки в крон (export EDITOR=nano; crontab -e), чтобы он запускался каждую неделю (для того, чтобы обновить список адресов, если они поменялись) и после перезагрузки:
+@reboot sleep 30 && bash /root/update_ru_routes.sh > /root/update_routes_log.txt 2>&1
+0 3 * * mon bash /root/update_ru_routes.sh > /root/update_routes_log.txt 2>&1
+
+Если вам принудительно надо маршрутизовать какую-то сеть через internal, то можно рядом со скриптом создать файлик subnets_user_list.txt в который поместить список подсетей, тогда они каждый раз будут добавляться к общему списку при обновлении.
+
+
+Пары ключей в статье — действующие, так что вы можете, ничего не исправляя в конфигах (только IP и имена адаптеров), залить их на два своих сервера и клиент и поиграться. Но для боевого применения ключи надо перегенерить, конечно. Так же, чтобы не усложнять статью, я не касался настройки файервола на серверах — если они торчат голой задницей в интернет, то это стоит сделать. О необходимости отключать авторизацию по паролю думаю, напоминать и так не надо.
+
+Если кто-то захочет это все красиво обернуть в два докера и прикрутить к этому веб-интерфейс (потому что конфиги клиентов все же удобнее создавать в нем) — добро пожаловать в issues на гитхабе.
+
+
