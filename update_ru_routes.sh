@@ -32,8 +32,10 @@ for line in $(cat $file_for_calc); do ipcalc $line |grep -v "deaggregate" >> $fi
 if [ -e $file_user  ]; then echo "Add user subnets..."; cat $file_user >> $file_processed; fi
 
 #Flush route table
-echo "Flush route table (down and up interface)..."
-ifdown $interface && ifup $interface
+echo "Flush route table (down interface)..."
+ifdown $interface > /dev/null 2>&1
+echo "Flush route table (up interface)..."
+ifup $interface > /dev/null 2>&1
 
 #Add route
 routes_count_in_file=`wc -l $file_processed`
