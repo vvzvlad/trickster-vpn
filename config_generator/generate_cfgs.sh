@@ -25,28 +25,28 @@ echo "********************************"
 
 
 echo "Replacing templates in configs..."
-gsed -i "s^---PRIVATE_KEY_EXTERNAL---^$PRIVATE_KEY_EXTERNAL^" ./configs/wg-external.conf
-gsed -i "s^---PRIVATE_KEY_EXTERNAL---^$PRIVATE_KEY_EXTERNAL^" ./configs/wg-internal.conf
-gsed -i "s^---PRIVATE_KEY_EXTERNAL---^$PRIVATE_KEY_EXTERNAL^" ./configs/wg-mobile-client.conf
+sed -i "s^---PRIVATE_KEY_EXTERNAL---^$PRIVATE_KEY_EXTERNAL^" ./configs/wg-external.conf
+sed -i "s^---PRIVATE_KEY_EXTERNAL---^$PRIVATE_KEY_EXTERNAL^" ./configs/wg-internal.conf
+sed -i "s^---PRIVATE_KEY_EXTERNAL---^$PRIVATE_KEY_EXTERNAL^" ./configs/wg-mobile-client.conf
 
-gsed -i "s^---PUBLIC_KEY_EXTERNAL---^$PUBLIC_KEY_EXTERNAL^" ./configs/wg-external.conf
-gsed -i "s^---PUBLIC_KEY_EXTERNAL---^$PUBLIC_KEY_EXTERNAL^" ./configs/wg-internal.conf
-gsed -i "s^---PUBLIC_KEY_EXTERNAL---^$PUBLIC_KEY_EXTERNAL^" ./configs/wg-mobile-client.conf
+sed -i "s^---PUBLIC_KEY_EXTERNAL---^$PUBLIC_KEY_EXTERNAL^" ./configs/wg-external.conf
+sed -i "s^---PUBLIC_KEY_EXTERNAL---^$PUBLIC_KEY_EXTERNAL^" ./configs/wg-internal.conf
+sed -i "s^---PUBLIC_KEY_EXTERNAL---^$PUBLIC_KEY_EXTERNAL^" ./configs/wg-mobile-client.conf
 
-gsed -i "s^---PRIVATE_KEY_INTERNAL---^$PRIVATE_KEY_INTERNAL^" ./configs/wg-external.conf
-gsed -i "s^---PRIVATE_KEY_INTERNAL---^$PRIVATE_KEY_INTERNAL^" ./configs/wg-internal.conf
-gsed -i "s^---PRIVATE_KEY_INTERNAL---^$PRIVATE_KEY_INTERNAL^" ./configs/wg-mobile-client.conf
+sed -i "s^---PRIVATE_KEY_INTERNAL---^$PRIVATE_KEY_INTERNAL^" ./configs/wg-external.conf
+sed -i "s^---PRIVATE_KEY_INTERNAL---^$PRIVATE_KEY_INTERNAL^" ./configs/wg-internal.conf
+sed -i "s^---PRIVATE_KEY_INTERNAL---^$PRIVATE_KEY_INTERNAL^" ./configs/wg-mobile-client.conf
 
-gsed -i "s^---PUBLIC_KEY_INTERNAL---^$PUBLIC_KEY_INTERNAL^" ./configs/wg-external.conf
-gsed -i "s^---PUBLIC_KEY_INTERNAL---^$PUBLIC_KEY_INTERNAL^" ./configs/wg-internal.conf
-gsed -i "s^---PUBLIC_KEY_INTERNAL---^$PUBLIC_KEY_INTERNAL^" ./configs/wg-mobile-client.conf
+sed -i "s^---PUBLIC_KEY_INTERNAL---^$PUBLIC_KEY_INTERNAL^" ./configs/wg-external.conf
+sed -i "s^---PUBLIC_KEY_INTERNAL---^$PUBLIC_KEY_INTERNAL^" ./configs/wg-internal.conf
+sed -i "s^---PUBLIC_KEY_INTERNAL---^$PUBLIC_KEY_INTERNAL^" ./configs/wg-mobile-client.conf
 
-gsed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-external.conf
-gsed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-internal.conf
-gsed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-mobile-client.conf
+sed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-external.conf
+sed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-internal.conf
+sed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-mobile-client.conf
 
-gsed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-external.conf
-gsed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-internal.conf
-gsed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-mobile-client.conf
+sed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-external.conf
+sed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-internal.conf
+sed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-mobile-client.conf
 
 echo "Generating complete"
