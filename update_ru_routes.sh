@@ -9,7 +9,7 @@ function ProgressBar {
   let _left=40-$_done
   _fill=$(printf "%${_done}s")
   _empty=$(printf "%${_left}s")
-  printf "\rLoading routes(${2}): [${_fill// /#}${_empty// /-}] ${_progress}%%"
+  printf "\rLoading routes (${1}/${2}): [${_fill// /#}${_empty// /-}] ${_progress}%%"
 }
 
 #Variables
@@ -32,9 +32,9 @@ for line in $(cat $file_for_calc); do ipcalc $line |grep -v "deaggregate" >> $fi
 if [ -e $file_user  ]; then echo "Add user subnets..."; cat $file_user >> $file_processed; fi
 
 #Flush route table
-echo "Flush route table (down interface)..."
+echo "Flush route table (down interface $interface)..."
 ifdown $interface > /dev/null 2>&1
-echo "Flush route table (up interface)..."
+echo "Up interface $interface..."
 ifup $interface > /dev/null 2>&1
 
 #Add route
