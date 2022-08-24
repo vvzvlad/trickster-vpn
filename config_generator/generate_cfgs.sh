@@ -7,6 +7,8 @@ PUBLIC_KEY_INTERNAL=`echo $PRIVATE_KEY_INTERNAL | wg pubkey`
 PRIVATE_KEY_CLIENT_1=`wg genkey`
 PUBLIC_KEY_CLIENT_1=`echo $PRIVATE_KEY_CLIENT_1 | wg pubkey`
 
+INTERNAL_IP_ADDRESS=`dig +short txt ch whoami.cloudflare @1.0.0.1`
+
 mkdir configs
 cp ./wg-external.conf ./configs/wg-external.conf
 cp ./wg-internal.conf ./configs/wg-internal.conf
@@ -48,5 +50,9 @@ sed -i "s^---PRIVATE_KEY_CLIENT_1---^$PRIVATE_KEY_CLIENT_1^" ./configs/wg-mobile
 sed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-external.conf
 sed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-internal.conf
 sed -i "s^---PUBLIC_KEY_CLIENT_1---^$PUBLIC_KEY_CLIENT_1^" ./configs/wg-mobile-client.conf
+
+sed -i "s^---INTERNAL_IP_ADDRESS---^$INTERNAL_IP_ADDRESS^" ./configs/wg-external.conf
+sed -i "s^---INTERNAL_IP_ADDRESS---^$INTERNAL_IP_ADDRESS^" ./configs/wg-internal.conf
+sed -i "s^---INTERNAL_IP_ADDRESS---^$INTERNAL_IP_ADDRESS^" ./configs/wg-mobile-client.conf
 
 echo "Generating complete"
