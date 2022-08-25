@@ -237,7 +237,7 @@ HOST: trikster-internal.local     Loss%   Snt   Last   Avg  Best  Wrst StDev
 Создаем конфиг клиента, конечного устройства-пользователя VPN. За основу берем wg-external.conf, потому что он такой же точно клиент, который подключается к internal, разница только в том, что external получает пакеты, а наш клиент будет отправлять.
 
 Генерируем ему сразу пару публичный-приватный ключ:
-wg genkey > privatekey && wg pubkey < privatekey > publickey && echo && echo && echo -n "Private: " && cat privatekey &&  echo -n "Public: " && cat publickey && rm privatekey publickey
+prk=`wg genkey` && pbk=`echo $prk | wg pubkey` && printf "Private: $prk\nPublic: $pbk\n"
 Private: iPK7hYSU8TLVRD+w13nd3aGSYNLfnTx6zwdRzKcGb1o=
 Public: 26Vhud00ag/bdB9molvSxfBzZTlzdO+aZgrX3ZDncSg=
 
