@@ -29,7 +29,7 @@ cat $file_raw |grep "-" > $file_for_calc
 cat $file_raw |grep -v "-" > $file_processed
 for line in $(cat $file_for_calc); do ipcalc $line |grep -v "deaggregate" >> $file_processed; done
 
-if [ -e $file_user  ]; then echo "Add user subnets..."; cat $file_user >> $file_processed; fi
+if [ -e $file_user  ]; then echo "Add user subnets..."; cat $file_user |grep -v "#" >> $file_processed; fi
 
 #Flush route table
 echo "Flush route table (down interface $interface)..."
