@@ -9,7 +9,7 @@ function ProgressBar {
   let _left=40-$_done
   _fill=$(printf "%${_done}s")
   _empty=$(printf "%${_left}s")
-  printf "\Add routes to route table (${1}/${2}): [${_fill// /#}${_empty// /-}] ${_progress}%%"
+  printf "\rAdd routes to route table (${1}/${2}): [${_fill// /#}${_empty// /-}] ${_progress}%%"
 }
 
 #Variables
