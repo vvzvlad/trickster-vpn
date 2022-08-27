@@ -15,6 +15,7 @@ function ProgressBar {
 #Variables
 file_raw="russian_subnets_list_raw.txt"
 file_user="subnets_user_list.txt"
+file_user_hostnames="hosts_user_list.txt"
 file_for_calc="russian_subnets_list_raw_for_calc.txt"
 file_processed="russian_subnets_list_processed.txt"
 gateway_for_internal_ip=`ip route | awk '/default/ {print $3; exit}'`
@@ -29,7 +30,15 @@ cat $file_raw |grep "-" > $file_for_calc
 cat $file_raw |grep -v "-" > $file_processed
 for line in $(cat $file_for_calc); do ipcalc $line |grep -v "deaggregate" >> $file_processed; done
 
-if [ -e $file_user  ]; then echo "Add user subnets..."; cat $file_user |grep -v "#" >> $file_processed; fi
+if [ -e $file_user  ]
+then echo "Add user subnets..."
+  cat $file_user |grep -v "#" >> $file_processed
+fi
+
+if [ -e $file_user_hostnames  ]
+then echo "Add user hostnames..."
+  for line in $(cat $file_user_hostnames); do nslookup line |grep "Address" |grep -v "#" |awk '{print $2"/32"}' >> $file_processed; done
+fi
 
 #Flush route table
 echo "Flush route table (down interface $interface)..."
