@@ -1,4 +1,4 @@
-#!^bin^bash
+#!/bin/bash
 
 PRIVATE_KEY_EXTERNAL=`wg genkey`
 PUBLIC_KEY_EXTERNAL=`echo $PRIVATE_KEY_EXTERNAL | wg pubkey`
