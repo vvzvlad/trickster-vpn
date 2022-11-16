@@ -1,7 +1,7 @@
 #!/bin/bash
 #To crontab (export EDITOR=nano; crontab -e)
-#@reboot sleep 30 && bash /root/update_ru_routes.sh > /root/update_routes_log.txt 2>&1
-#0 3 * * mon bash /root/update_ru_routes.sh > /root/update_routes_log.txt 2>&1
+#@reboot sleep 30 && bash /root/update_exclude_routes.sh > /root/update_routes_log.txt 2>&1
+#0 3 * * mon bash /root/update_exclude_routes.sh > /root/update_routes_log.txt 2>&1
 
 function ProgressBar {
   let _progress=(${1}*100/${2}*100)/100
