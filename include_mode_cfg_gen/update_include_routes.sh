@@ -11,9 +11,9 @@ function ProgressBar {
 }
 
 #Variables
-file_user="subnets_user_list.txt"
-file_user_hostnames="hosts_user_list.txt"
-file_processed="include_subnets_list_processed.txt"
+file_user="/etc/wireguard/subnets_user_list.txt"
+file_user_hostnames="/etc/wireguard/hosts_user_list.txt"
+file_processed="/etc/wireguard/include_subnets_list_processed.txt"
 interface_for_external_ip="wg-internal"
 
 if [ -e $file_user  ]
@@ -23,7 +23,7 @@ fi
 
 if [ -e $file_user_hostnames  ]
 then echo "Add user hostnames..."
-  for line in $(cat $file_user_hostnames); do nslookup line |grep "Address" |grep -v "#" |awk '{print $2"/32"}' >> $file_processed; done
+  for line in $(cat $file_user_hostnames); do nslookup $line |grep "Address" |grep -v "#"|grep -v ":53" |awk '{print $2"/32"}' >> $file_processed; done
 fi
 
 #Flush route table
