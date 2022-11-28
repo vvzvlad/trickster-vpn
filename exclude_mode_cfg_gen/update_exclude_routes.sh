@@ -19,7 +19,7 @@ file_user_hostnames="hosts_user_list.txt"
 file_for_calc="russian_subnets_list_raw_for_calc.txt"
 file_processed="russian_subnets_list_processed.txt"
 gateway_for_internal_ip=`ip route | awk '/default/ {print $3; exit}'`
-interface=`ip link show | awk -F ': ' '/state UP/ {print $2}'`
+interface=`ip link show | awk -F ': ' '/state UP/ {print $2}'  | grep --invert-match docker | grep --invert-match veth | head -n 1`
 
 #Get addresses RU segment
 echo "Download RU subnets..."
